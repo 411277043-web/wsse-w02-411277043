@@ -1,0 +1,451 @@
+openapi: 3.1.0
+info:
+  title: UnitPriceCompare API
+  version: 1.0.0
+  description: |
+    LAB 04 - UnitPriceCompare OpenAPI Contract
+    Student ID: 411277043 / GitHub Username: 411277043-web
+
+    本文件將 LAB 03（LAB03_411277043.md）的 RESTful API Design 轉成 API Contract。
+    Method、Path 與 Status Code 皆沿用 LAB 03，不重新設計；
+    Schema 的驗證規則對應 LAB 02（LAB02_411277043.md）的 Business Rules。
+
+servers:
+  - url: http://127.0.0.1:8000/api/v1
+    description: Local development
+
+tags:
+  - name: comparisons
+    description: 比較（Comparison）的建立、查詢與刪除
+  - name: items
+    description: 比較中的商品（Item）
+  - name: results
+    description: 比價結果（Derived Resource，唯讀）
+
+paths:
+  /comparisons:
+    post:
+      tags: [comparisons]
+      operationId: createComparison
+      summary: Create a comparison
+      description: 建立一次尚未包含商品的比較。（FR-01）
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComparisonCreate'
+            example:
+              name: 超商瓶裝水
+      responses:
+        '201':
+          description: Comparison created
+          headers:
+            Location:
+              description: 新建立資源的 URL，例如 /api/v1/comparisons/12
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comparison'
+              example:
+                id: 12
+                name: 超商瓶裝水
+                measurement_type: null
+                created_at: '2026-10-22T19:00:00+08:00'
+                items: []
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /comparisons/{comparison_id}:
+    parameters:
+      - $ref: '#/components/parameters/ComparisonId'
+    get:
+      tags: [comparisons]
+      operationId: getComparison
+      summary: Get a comparison with its items
+      description: 取得指定比較及其目前包含的商品。（FR-05）
+      responses:
+        '200':
+          description: Comparison found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comparison'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [comparisons]
+      operationId: deleteComparison
+      summary: Delete a comparison
+      description: 刪除指定比較，連同其所有商品。（FR-11）
+      responses:
+        '204':
+          description: Comparison deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /comparisons/{comparison_id}/items:
+    parameters:
+      - $ref: '#/components/parameters/ComparisonId'
+    post:
+      tags: [items]
+      operationId: addItem
+      summary: Add an item to a comparison
+      description: |
+        在比較中新增一個商品。（FR-02、FR-06）
+        除了 Schema 驗證（BR-01、BR-02、BR-03、BR-05）之外，
+        Server 還會檢查新商品的 Measurement Type 是否與同一比較中既有商品一致（BR-06）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemCreate'
+            example:
+              name: WATER_A
+              price: 45
+              quantity: 500
+              unit: mL
+      responses:
+        '201':
+          description: Item added
+          headers:
+            Location:
+              description: 新商品的 URL，例如 /api/v1/comparisons/12/items/3
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+              example:
+                id: 3
+                name: WATER_A
+                price: 45
+                quantity: 500
+                unit: mL
+                measurement_type: VOLUME
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /comparisons/{comparison_id}/items/{item_id}:
+    parameters:
+      - $ref: '#/components/parameters/ComparisonId'
+      - $ref: '#/components/parameters/ItemId'
+    patch:
+      tags: [items]
+      operationId: updateItem
+      summary: Update part of an item
+      description: |
+        修改商品的部分欄位，至少需提供一個欄位。（FR-03、FR-06）
+        修改後的資料同樣須符合 BR-01～BR-06。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemUpdate'
+            example:
+              price: 40
+      responses:
+        '200':
+          description: Item updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [items]
+      operationId: deleteItem
+      summary: Remove an item from a comparison
+      description: 從比較中移除指定商品。（FR-04）
+      responses:
+        '204':
+          description: Item removed
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /comparisons/{comparison_id}/result:
+    parameters:
+      - $ref: '#/components/parameters/ComparisonId'
+    get:
+      tags: [results]
+      operationId: getComparisonResult
+      summary: Get the comparison result
+      description: |
+        依目前的商品即時計算比價結果。（FR-07～FR-10）
+        - 數量換算為基準單位（BR-07）
+        - Unit Price = Price / Normalized Quantity（BR-08）
+        - Unit Price 最低者為 Best Choice；同值並列時全部列出，依加入順序排列（BR-09、BR-10）
+        - 商品少於 2 個時回傳 400 INSUFFICIENT_ITEMS（BR-04）
+      responses:
+        '200':
+          description: Result calculated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComparisonResult'
+              example:
+                comparison_id: 12
+                measurement_type: VOLUME
+                base_unit: mL
+                items:
+                  - item_id: 3
+                    name: WATER_A
+                    price: 45
+                    quantity: 500
+                    unit: mL
+                    normalized_quantity: 500
+                    unit_price: 0.09
+                  - item_id: 4
+                    name: WATER_B
+                    price: 80
+                    quantity: 1
+                    unit: L
+                    normalized_quantity: 1000
+                    unit_price: 0.08
+                best_choice_item_ids: [4]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  parameters:
+    ComparisonId:
+      name: comparison_id
+      in: path
+      required: true
+      description: 比較的 ID
+      schema:
+        type: integer
+        minimum: 1
+    ItemId:
+      name: item_id
+      in: path
+      required: true
+      description: 商品的 ID
+      schema:
+        type: integer
+        minimum: 1
+
+  schemas:
+    Unit:
+      type: string
+      description: 支援的單位（BR-05）。Volume：mL、L；Weight：g、kg；Count：piece
+      enum: [mL, L, g, kg, piece]
+
+    MeasurementType:
+      type: string
+      description: 單位所屬的 Measurement Type（BR-06）
+      enum: [VOLUME, WEIGHT, COUNT]
+
+    ComparisonCreate:
+      type: object
+      description: 建立比較時 Client 可傳入的資料；可以不傳 Body。
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          description: 比較的名稱（選填），方便使用者辨識
+
+    Comparison:
+      type: object
+      description: Server 回傳的比較，包含目前的商品。
+      required: [id, measurement_type, created_at, items]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        name:
+          type: [string, 'null']
+          maxLength: 50
+        measurement_type:
+          description: 依第一個加入的商品決定；尚未加入商品時為 null
+          oneOf:
+            - $ref: '#/components/schemas/MeasurementType'
+            - type: 'null'
+        created_at:
+          type: string
+          format: date-time
+        items:
+          type: array
+          description: 依加入順序排列
+          items:
+            $ref: '#/components/schemas/Item'
+
+    ItemCreate:
+      type: object
+      description: 新增商品時 Client 傳入的資料。
+      required: [name, price, quantity, unit]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          description: 商品名稱，不可為空白（BR-03）
+        price:
+          type: number
+          exclusiveMinimum: 0
+          description: 價格（元），必須大於 0（BR-01）
+        quantity:
+          type: number
+          exclusiveMinimum: 0
+          description: 數量，必須大於 0（BR-02）
+        unit:
+          $ref: '#/components/schemas/Unit'
+
+    ItemUpdate:
+      type: object
+      description: 修改商品時的部分欄位，至少提供一個。
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        price:
+          type: number
+          exclusiveMinimum: 0
+        quantity:
+          type: number
+          exclusiveMinimum: 0
+        unit:
+          $ref: '#/components/schemas/Unit'
+
+    Item:
+      type: object
+      description: Server 回傳的商品；id 與 measurement_type 由 Server 產生。
+      required: [id, name, price, quantity, unit, measurement_type]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        price:
+          type: number
+        quantity:
+          type: number
+        unit:
+          $ref: '#/components/schemas/Unit'
+        measurement_type:
+          $ref: '#/components/schemas/MeasurementType'
+
+    ItemResult:
+      type: object
+      description: 比價結果中的單一商品，含換算後數量與單位價格。
+      required: [item_id, name, price, quantity, unit, normalized_quantity, unit_price]
+      properties:
+        item_id:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        price:
+          type: number
+        quantity:
+          type: number
+        unit:
+          $ref: '#/components/schemas/Unit'
+        normalized_quantity:
+          type: number
+          description: 換算為基準單位後的數量（BR-07）
+        unit_price:
+          type: number
+          description: 每一基準單位的價格，Price / Normalized Quantity（BR-08）
+
+    ComparisonResult:
+      type: object
+      description: 比價結果（Derived Resource），每次依目前的商品即時計算。
+      required: [comparison_id, measurement_type, base_unit, items, best_choice_item_ids]
+      properties:
+        comparison_id:
+          type: integer
+          minimum: 1
+        measurement_type:
+          $ref: '#/components/schemas/MeasurementType'
+        base_unit:
+          type: string
+          enum: [mL, g, piece]
+          description: 本次比較使用的基準單位
+        items:
+          type: array
+          minItems: 2
+          items:
+            $ref: '#/components/schemas/ItemResult'
+        best_choice_item_ids:
+          type: array
+          minItems: 1
+          description: Unit Price 最低的商品 ID；同值並列時有多個，依加入順序排列（BR-09、BR-10）
+          items:
+            type: integer
+
+    ErrorResponse:
+      type: object
+      description: 統一錯誤格式；所有 4xx 回應皆使用此格式。
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: 機器可讀的錯誤代碼
+          enum:
+            - INVALID_REQUEST
+            - MEASUREMENT_TYPE_MISMATCH
+            - INSUFFICIENT_ITEMS
+            - NOT_FOUND
+        message:
+          type: string
+          description: 人類可讀的錯誤說明，需指出欄位與違反的規則（NFR-03）
+        traceId:
+          type: string
+          description: 選填，供日後追蹤 Log 使用
+
+  responses:
+    BadRequest:
+      description: |
+        Request 不符合 Contract 或 Business Rules。
+        - INVALID_REQUEST：欄位缺漏、型別錯誤、價格或數量不大於 0、名稱空白、不支援的單位（BR-01～BR-03、BR-05）
+        - MEASUREMENT_TYPE_MISMATCH：與既有商品的 Measurement Type 不同（BR-06）
+        - INSUFFICIENT_ITEMS：商品少於 2 個，無法產生比較結果（BR-04）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalidPrice:
+              summary: 價格不大於 0
+              value:
+                code: INVALID_REQUEST
+                message: price must be greater than 0
+            typeMismatch:
+              summary: Measurement Type 不一致
+              value:
+                code: MEASUREMENT_TYPE_MISMATCH
+                message: unit g (WEIGHT) does not match the comparison's measurement type VOLUME
+            insufficientItems:
+              summary: 商品不足
+              value:
+                code: INSUFFICIENT_ITEMS
+                message: at least 2 items are required to calculate the result
+    NotFound:
+      description: 指定的 Comparison 或 Item 不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: NOT_FOUND
+            message: comparison 999 not found
