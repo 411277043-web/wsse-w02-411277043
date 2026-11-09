@@ -13,6 +13,8 @@
 | LAB 01 | W02 | Web Service 操作與環境就緒檢核 | [LAB01_411277043.md](LAB01_411277043.md) |
 | LAB 02 | W03 | 需求工程（Requirements Engineering） | [LAB02_411277043.md](LAB02_411277043.md) |
 | LAB 03 | W04 | RESTful API 設計（RESTful API Design） | [LAB03_411277043.md](LAB03_411277043.md) |
+| LAB 04 | W06 | API 契約與 OpenAPI（API Contract & OpenAPI） | [LAB04_411277043_openapi.yaml](LAB04_411277043_openapi.yaml) |
+| LAB 05 | W07 | 系統架構與資料建模（Architecture & Data Modeling） | [LAB05_411277043.md](LAB05_411277043.md) |
 
 ## 執行 Teaching Mock
 
