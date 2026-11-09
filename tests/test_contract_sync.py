@@ -1,4 +1,7 @@
-"""規格一致性檢查：LAB 04 Contract 與實際 API（/openapi.json）的路徑、方法、狀態碼與欄位必須一致。"""
+"""規格一致性檢查：openapi.yaml Contract 與實際 API（/openapi.json）的路徑、方法、狀態碼、欄位與安全機制必須一致。
+
+LAB 07 起以根目錄的 openapi.yaml 為目前的 Contract；LAB04_411277043_openapi.yaml 保留 W06 繳交時的版本。
+"""
 
 from pathlib import Path
 
@@ -6,7 +9,7 @@ import yaml
 
 from app.main import API_PREFIX
 
-CONTRACT_FILE = Path(__file__).resolve().parents[1] / "LAB04_411277043_openapi.yaml"
+CONTRACT_FILE = Path(__file__).resolve().parents[1] / "openapi.yaml"
 HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
 # Contract 的 Schema 名稱 → 程式中的 Pydantic Model 名稱（只有 Response Model 的命名不同）
 SCHEMA_NAMES = {"Item": "ItemRead", "Comparison": "ComparisonRead"}
@@ -57,3 +60,23 @@ def test_schema_fields_match_contract(client):
             continue  # Unit、MeasurementType 是列舉
         live_name = SCHEMA_NAMES.get(name, name)
         assert set(live_schemas[live_name]["properties"]) == set(schema["properties"]), name
+
+
+def test_security_matches_contract(client):
+    """LAB 07：寫入 API 宣告 ApiKeyAuth，GET 不宣告；Security Scheme 與 Contract 相同。"""
+    contract = load_contract()
+    live = client.get("/openapi.json").json()
+
+    contract_scheme = contract["components"]["securitySchemes"]["ApiKeyAuth"]
+    live_scheme = live["components"]["securitySchemes"]["ApiKeyAuth"]
+    for field in ("type", "in", "name"):
+        assert live_scheme[field] == contract_scheme[field]
+
+    for path, path_item in contract["paths"].items():
+        for method, operation in path_item.items():
+            if method not in HTTP_METHODS:
+                continue
+            live_operation = live["paths"][API_PREFIX + path][method]
+            assert live_operation.get("security") == operation.get("security"), (method, path)
+            if method == "get":
+                assert "security" not in operation

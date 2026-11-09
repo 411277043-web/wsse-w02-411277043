@@ -1,12 +1,13 @@
-"""UnitPriceCompare（LAB 06）：依 LAB 04 Contract 實作 7 條 API，資料存在 SQLite。
+"""UnitPriceCompare：依 openapi.yaml Contract 實作 7 條 API，資料存在 SQLite。
 
 本檔是 LAB 05 的 Router 層：讀取參數、呼叫 Service、組成 Response（201 + Location、200、204），
-並把所有錯誤統一轉成 LAB 04 的 ErrorResponse。
+並把所有錯誤統一轉成 Contract 的 ErrorResponse。
+LAB 06（W08）完成 7 條 API；LAB 07（W09）為 5 條寫入 API 加上 Security(require_editor)，2 條 GET 維持公開。
 """
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, FastAPI, Path, Request, Response, status
+from fastapi import APIRouter, Depends, FastAPI, Path, Request, Response, Security, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
@@ -25,6 +26,7 @@ from .schemas import (
     ItemRead,
     ItemUpdate,
 )
+from .security import CurrentUser, require_editor
 
 API_PREFIX = "/api/v1"  # LAB 04 servers.url
 
@@ -34,7 +36,10 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="UnitPriceCompare API",
     version="1.0.0",
-    description="LAB 06 - 依 LAB 04 OpenAPI Contract 實作的單位價格比較服務（Student ID: 411277043）",
+    description=(
+        "LAB 07 - 單位價格比較服務（Student ID: 411277043）。"
+        "新增、修改、刪除需要 editor 的 X-API-Key；查詢與比價結果不需要。"
+    ),
     openapi_tags=[
         {"name": "comparisons", "description": "比較（Comparison）的建立、查詢與刪除"},
         {"name": "items", "description": "比較中的商品（Item）"},
@@ -49,6 +54,12 @@ ItemId = Annotated[int, Path(ge=1, description="商品的 ID")]
 # LAB 04 components.responses：所有 4xx 都使用 ErrorResponse
 BAD_REQUEST = {400: {"model": ErrorResponse, "description": "Request 不符合 Contract 或 Business Rules"}}
 NOT_FOUND = {404: {"model": ErrorResponse, "description": "指定的 Comparison 或 Item 不存在"}}
+# LAB 07：寫入 API 的身分與權限錯誤
+AUTH_ERRORS = {
+    401: {"model": ErrorResponse, "description": "缺少 X-API-Key"},
+    403: {"model": ErrorResponse, "description": "金鑰無效，或使用者不是 editor"},
+    503: {"model": ErrorResponse, "description": "伺服器的使用者設定缺漏或格式錯誤"},
+}
 
 
 # ---------- 7 條 API（Method、Path、Status Code 沿用 LAB 03／LAB 04） ----------
@@ -58,15 +69,18 @@ NOT_FOUND = {404: {"model": ErrorResponse, "description": "指定的 Comparison 
     "/comparisons",
     status_code=status.HTTP_201_CREATED,
     response_model=ComparisonRead,
-    responses=BAD_REQUEST,
+    responses={**BAD_REQUEST, **AUTH_ERRORS},
     tags=["comparisons"],
     operation_id="createComparison",
     summary="Create a comparison",
 )
 def create_comparison(
-    response: Response, data: ComparisonCreate | None = None, db: Session = Depends(get_db)
+    response: Response,
+    data: ComparisonCreate | None = None,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Security(require_editor),
 ):
-    """建立一次尚未包含商品的比較；可以不傳 Body。（FR-01）"""
+    """建立一次尚未包含商品的比較；可以不傳 Body。（FR-01；限 editor，SEC-02）"""
     created = service.create_comparison(db, data or ComparisonCreate())
     response.headers["Location"] = f"{API_PREFIX}/comparisons/{created.id}"
     return created
@@ -89,13 +103,17 @@ def get_comparison(comparison_id: ComparisonId, db: Session = Depends(get_db)):
     "/comparisons/{comparison_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
-    responses=NOT_FOUND,
+    responses={**NOT_FOUND, **AUTH_ERRORS},
     tags=["comparisons"],
     operation_id="deleteComparison",
     summary="Delete a comparison",
 )
-def delete_comparison(comparison_id: ComparisonId, db: Session = Depends(get_db)):
-    """刪除指定比較，連同其所有商品。（FR-11）"""
+def delete_comparison(
+    comparison_id: ComparisonId,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Security(require_editor),
+):
+    """刪除指定比較，連同其所有商品。（FR-11；限 editor，SEC-03）"""
     service.delete_comparison(db, comparison_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -104,15 +122,22 @@ def delete_comparison(comparison_id: ComparisonId, db: Session = Depends(get_db)
     "/comparisons/{comparison_id}/items",
     status_code=status.HTTP_201_CREATED,
     response_model=ItemRead,
-    responses={**BAD_REQUEST, **NOT_FOUND},
+    responses={**BAD_REQUEST, **NOT_FOUND, **AUTH_ERRORS},
     tags=["items"],
     operation_id="addItem",
     summary="Add an item to a comparison",
 )
 def add_item(
-    comparison_id: ComparisonId, data: ItemCreate, response: Response, db: Session = Depends(get_db)
+    comparison_id: ComparisonId,
+    data: ItemCreate,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Security(require_editor),
 ):
-    """在比較中新增一個商品。（FR-02、FR-06；BR-01～BR-03、BR-05 由 Schema 檢查，BR-06 由 Service 檢查）"""
+    """在比較中新增一個商品。（FR-02、FR-06；限 editor，SEC-02）
+
+    BR-01～BR-03、BR-05 由 Schema 檢查，BR-06 由 Service 檢查。
+    """
     item = service.add_item(db, comparison_id, data)
     response.headers["Location"] = f"{API_PREFIX}/comparisons/{comparison_id}/items/{item.id}"
     return item
@@ -121,15 +146,19 @@ def add_item(
 @router.patch(
     "/comparisons/{comparison_id}/items/{item_id}",
     response_model=ItemRead,
-    responses={**BAD_REQUEST, **NOT_FOUND},
+    responses={**BAD_REQUEST, **NOT_FOUND, **AUTH_ERRORS},
     tags=["items"],
     operation_id="updateItem",
     summary="Update part of an item",
 )
 def update_item(
-    comparison_id: ComparisonId, item_id: ItemId, data: ItemUpdate, db: Session = Depends(get_db)
+    comparison_id: ComparisonId,
+    item_id: ItemId,
+    data: ItemUpdate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Security(require_editor),
 ):
-    """修改商品的部分欄位，至少需提供一個欄位；修改後同樣須符合 BR-01～BR-06。（FR-03、FR-06）"""
+    """修改商品的部分欄位，至少需提供一個欄位；修改後同樣須符合 BR-01～BR-06。（FR-03、FR-06；限 editor，SEC-03）"""
     return service.update_item(db, comparison_id, item_id, data)
 
 
@@ -137,13 +166,18 @@ def update_item(
     "/comparisons/{comparison_id}/items/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
-    responses=NOT_FOUND,
+    responses={**NOT_FOUND, **AUTH_ERRORS},
     tags=["items"],
     operation_id="deleteItem",
     summary="Remove an item from a comparison",
 )
-def delete_item(comparison_id: ComparisonId, item_id: ItemId, db: Session = Depends(get_db)):
-    """從比較中移除指定商品。（FR-04）"""
+def delete_item(
+    comparison_id: ComparisonId,
+    item_id: ItemId,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Security(require_editor),
+):
+    """從比較中移除指定商品。（FR-04；限 editor，SEC-03）"""
     service.delete_item(db, comparison_id, item_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -200,10 +234,18 @@ async def handle_domain_error(request: Request, exc: DomainError):
     return error_response(status_code, exc.code, exc.message)
 
 
+HTTP_ERROR_CODES = {
+    status.HTTP_401_UNAUTHORIZED: "UNAUTHENTICATED",
+    status.HTTP_403_FORBIDDEN: "FORBIDDEN",
+    status.HTTP_404_NOT_FOUND: "NOT_FOUND",
+    status.HTTP_503_SERVICE_UNAVAILABLE: "SERVICE_UNAVAILABLE",
+}
+
+
 @app.exception_handler(StarletteHTTPException)
 async def handle_http_error(request: Request, exc: StarletteHTTPException):
-    """路徑不存在（404）或 Method 不支援（405）時，也使用相同的錯誤格式。"""
-    code = "NOT_FOUND" if exc.status_code == status.HTTP_404_NOT_FOUND else "INVALID_REQUEST"
+    """app/security.py 的 401／403／503、路徑不存在（404）、Method 不支援（405），也使用相同的錯誤格式。"""
+    code = HTTP_ERROR_CODES.get(exc.status_code, "INVALID_REQUEST")
     return error_response(exc.status_code, code, str(exc.detail), headers=getattr(exc, "headers", None))
 
 

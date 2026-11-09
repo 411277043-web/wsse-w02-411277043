@@ -155,8 +155,16 @@ class ComparisonResult(BaseModel):
 
 
 class ErrorResponse(BaseModel):
-    """統一錯誤格式；所有 4xx 回應皆使用此格式。"""
+    """統一錯誤格式；所有 4xx（以及 LAB 07 的 503）回應皆使用此格式。"""
 
-    code: Literal["INVALID_REQUEST", "MEASUREMENT_TYPE_MISMATCH", "INSUFFICIENT_ITEMS", "NOT_FOUND"]
+    code: Literal[
+        "INVALID_REQUEST",
+        "MEASUREMENT_TYPE_MISMATCH",
+        "INSUFFICIENT_ITEMS",
+        "NOT_FOUND",
+        "UNAUTHENTICATED",  # LAB 07：缺少 X-API-Key（401）
+        "FORBIDDEN",  # LAB 07：金鑰無效或不是 editor（403）
+        "SERVICE_UNAVAILABLE",  # LAB 07：伺服器使用者設定錯誤（503）
+    ]
     message: str
     traceId: str | None = None  # Contract 中為選填，本版尚未使用，輸出時省略
