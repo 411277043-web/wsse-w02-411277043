@@ -15,12 +15,64 @@
 | LAB 03 | W04 | RESTful API 設計（RESTful API Design） | [LAB03_411277043.md](LAB03_411277043.md) |
 | LAB 04 | W06 | API 契約與 OpenAPI（API Contract & OpenAPI） | [LAB04_411277043_openapi.yaml](LAB04_411277043_openapi.yaml) |
 | LAB 05 | W07 | 系統架構與資料建模（Architecture & Data Modeling） | [LAB05_411277043.md](LAB05_411277043.md) |
+| LAB 06 | W08 | 資料庫設計與核心功能實作（Database Design & Core Implementation） | [LAB06_411277043.md](LAB06_411277043.md)、[app/](app/)、[tests/](tests/) |
 
-## 執行 Teaching Mock
+## LAB 06：執行 UnitPriceCompare API
+
+依 LAB 04 Contract 實作 7 條 API，資料存在 SQLite。
+
+### 1. 安裝套件
 
 ```bash
-python -m pip install -r requirements.txt
-uvicorn main:app --reload
+python -m pip install -r requirements-dev.txt
 ```
 
-Swagger UI：`http://127.0.0.1:8000/docs`
+### 2. 啟動 API
+
+```bash
+python -m uvicorn app.main:app --reload
+```
+
+- Swagger UI：`http://127.0.0.1:8000/docs`
+- 所有 API 的前綴為 `/api/v1`（LAB 04 `servers.url`）。
+- 資料存在專案根目錄的 `unitprice.db`，重新啟動 API 後資料仍在；此檔已列入 `.gitignore`，不提交到 GitHub。
+
+### 3. 執行自動化測試
+
+```bash
+python -m pytest -q
+```
+
+測試使用記憶體資料庫，不會動到 `unitprice.db`。
+
+### 4. 在 Swagger UI 操作一次完整流程
+
+1. `POST /api/v1/comparisons`，Body：`{"name": "超商瓶裝水"}` → `201`，記下回傳的 `id`。
+2. `POST /api/v1/comparisons/{id}/items`，Body：`{"name": "WATER_A", "price": 45, "quantity": 500, "unit": "mL"}` → `201`。
+3. 再新增 `{"name": "WATER_B", "price": 80, "quantity": 1, "unit": "L"}` → `201`。
+4. `GET /api/v1/comparisons/{id}/result` → `200`：WATER_A 為 0.09 元/mL、WATER_B 為 0.08 元/mL，`best_choice_item_ids` 為 WATER_B。
+5. 錯誤情況：
+   - 新增 `price: 0` 的商品 → `400 INVALID_REQUEST`（BR-01）
+   - 在同一比較新增 `unit: "g"` 的商品 → `400 MEASUREMENT_TYPE_MISMATCH`（BR-06）
+   - 對只有 1 個商品的比較取得結果 → `400 INSUFFICIENT_ITEMS`（BR-04）
+   - 查詢不存在的比較 → `404 NOT_FOUND`
+
+### 5. 專案結構（對應 LAB 05 架構）
+
+| 檔案 | 層級 | 責任 |
+|---|---|---|
+| `app/main.py` | Router | 7 條 API、Status Code 與 `Location`、把錯誤轉成 `ErrorResponse` |
+| `app/schemas.py` | Router（Schema） | Request／Response 格式與單一欄位驗證（BR-01～BR-03、BR-05） |
+| `app/service.py` | Service | `UnitConverter`、BR-04、BR-06～BR-10 |
+| `app/exceptions.py` | Service | 業務錯誤，不含 HTTP 細節 |
+| `app/repository.py` | Repository | 讀寫 Comparison／Item |
+| `app/models.py`、`app/database.py` | Database | SQLite 資料表與連線 |
+| `tests/` | 測試 | 驗收測試（AC）、Service 單元測試、Contract 一致性檢查 |
+
+## LAB 01 Teaching Mock
+
+根目錄的 `main.py` 是 LAB 01 的教學 Mock（`POST /compare`），保留作為紀錄。LAB 03 起改為 Resource-based 設計，由 `app/` 取代。
+
+```bash
+python -m uvicorn main:app --reload
+```
