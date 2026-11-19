@@ -17,6 +17,7 @@
 | LAB 05 | W07 | 系統架構與資料建模（Architecture & Data Modeling） | [LAB05_411277043.md](LAB05_411277043.md) |
 | LAB 06 | W08 | 資料庫設計與核心功能實作（Database Design & Core Implementation） | [LAB06_411277043.md](LAB06_411277043.md)、[app/](app/)、[tests/](tests/) |
 | LAB 07 | W09 | API 安全性與驗證機制（API Security & Authentication） | [LAB07_411277043.md](LAB07_411277043.md)、[docs/](docs/)、[openapi.yaml](openapi.yaml) |
+| LAB 08 | W10 | 網際服務測試與 Git 協作（Web Service Testing & Git Collaboration） | [LAB08_411277043.md](LAB08_411277043.md)、[tests/test_w10_lab.py](tests/test_w10_lab.py)、[docs/06_test_plan.md](docs/06_test_plan.md) |
 
 ## 執行 UnitPriceCompare API（LAB 06、LAB 07）
 
@@ -77,7 +78,7 @@ python -m pytest -q
 | `app/exceptions.py` | Service | 業務錯誤，不含 HTTP 細節 |
 | `app/repository.py` | Repository | 讀寫 Comparison／Item |
 | `app/models.py`、`app/database.py` | Database | SQLite 資料表與連線 |
-| `tests/` | 測試 | 驗收測試（AC）、安全測試（SEC）、Service 單元測試、Contract 一致性檢查 |
+| `tests/` | 測試 | 驗收測試（AC）、安全測試（SEC）、W10 回歸測試（T01～T03）、Service 單元測試、Contract 一致性檢查 |
 | `openapi.yaml` | Contract | 目前的 API 契約（LAB 04 加上 LAB 07 的安全契約）；`LAB04_411277043_openapi.yaml` 保留 W06 繳交版本 |
 | `docs/` | 文件 | W09 版的需求、API 設計、架構、追溯矩陣與提交指引 |
 

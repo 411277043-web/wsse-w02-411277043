@@ -40,8 +40,11 @@ def database():
             yield db
 
     app.dependency_overrides[get_db] = override_get_db
-    yield
-    app.dependency_overrides.clear()
+    try:
+        yield testing_session  # LAB 08：讓測試可以直接查詢 SQLite，確認有沒有寫入
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()
 
 
 @pytest.fixture
@@ -56,3 +59,15 @@ def anonymous(database):
     """不帶任何金鑰的 client；LAB 07 測試再依情境自行加上 Header。與 client 共用同一個資料庫。"""
     with TestClient(app) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def context(database):
+    """LAB 08：回傳 (api, Session)。
+
+    api 是不帶金鑰的 client，每個請求自行決定用 EDITOR 或 VIEWER；
+    Session 連到同一個測試用 SQLite，用來檢查 API 呼叫後資料庫「真的」有沒有改變。
+    老師範例的 fixture 也叫 context；本專案已有 database fixture，因此整合在一起，不另建一份。
+    """
+    with TestClient(app) as api:
+        yield api, database
