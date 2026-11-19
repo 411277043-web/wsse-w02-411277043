@@ -1,0 +1,43 @@
+# LAB 09（W11）：建立或更新指向 main 的 Pull Request 時，由 GitHub 自動檢查品質。
+# Job 1 先檢查 Python 語法；成功後 Job 2 才安裝套件，並執行 W08～W10 的所有 pytest 測試。
+name: W11 API Quality Checks
+
+on:
+  pull_request:
+    branches: [main] # PR 的 base 是 main 時觸發；PR 推送新 commit 也會重跑
+  push:
+    branches: [main] # PR 合併進 main 後，再對 main 檢查一次
+
+permissions:
+  contents: read # 只需要讀取程式碼（最小權限）
+
+jobs:
+  syntax-check:
+    name: Syntax check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Compile app and tests
+        run: python -m compileall -q app tests
+
+  api-tests:
+    name: API regression tests
+    needs: syntax-check # 語法檢查成功才執行；失敗時這個 Job 會顯示 skipped
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+      # 測試用的假金鑰由 tests/conftest.py 注入，CI 不需要任何 Secret
+      - name: Run pytest
+        run: python -m pytest -q

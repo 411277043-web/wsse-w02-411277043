@@ -18,6 +18,7 @@
 | LAB 06 | W08 | 資料庫設計與核心功能實作（Database Design & Core Implementation） | [LAB06_411277043.md](LAB06_411277043.md)、[app/](app/)、[tests/](tests/) |
 | LAB 07 | W09 | API 安全性與驗證機制（API Security & Authentication） | [LAB07_411277043.md](LAB07_411277043.md)、[docs/](docs/)、[openapi.yaml](openapi.yaml) |
 | LAB 08 | W10 | 網際服務測試與 Git 協作（Web Service Testing & Git Collaboration） | [LAB08_411277043.md](LAB08_411277043.md)、[tests/test_w10_lab.py](tests/test_w10_lab.py)、[docs/06_test_plan.md](docs/06_test_plan.md) |
+| LAB 09 | W11 | 持續整合與自動化品質管理（Continuous Integration & Automated QA） | [LAB09_411277043.md](LAB09_411277043.md)、[.github/workflows/api-tests.yml](.github/workflows/api-tests.yml) |
 
 ## 執行 UnitPriceCompare API（LAB 06、LAB 07）
 
